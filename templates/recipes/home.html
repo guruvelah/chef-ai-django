@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}ChefAI – Smart Recipe Finder{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-pill">🤖 AI-Powered • Django Backend • SQLite Database</div>
+    <h1 class="hero-title">Smarter Cooking<br><span class="gradient-text">with AI</span></h1>
+    <p class="hero-subtitle">{{ total_recipes }} curated recipes, real-time AI chat, and intelligent pantry matching — all powered by Django.</p>
+    <div class="hero-actions">
+      <a href="#recipes" class="btn btn-primary">🍳 Browse Recipes</a>
+      <button class="btn btn-secondary" onclick="togglePantry()">🥬 Pantry Match</button>
+      <button class="btn btn-accent" onclick="toggleChat()">💬 Ask AI Chef</button>
+    </div>
+    <div class="hero-stats">
+      <div class="stat"><span class="stat-num">{{ total_recipes }}</span><span class="stat-label">Recipes</span></div>
+      <div class="stat"><span class="stat-num">{{ total_chats }}</span><span class="stat-label">AI Chats</span></div>
+      <div class="stat"><span class="stat-num">5</span><span class="stat-label">Cuisines</span></div>
+      <div class="stat"><span class="stat-num">Django</span><span class="stat-label">Backend</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- Pantry Matcher -->
+<section class="pantry-section" id="pantrySection" style="display:none;">
+  <div class="container">
+    <h2 class="section-title">🥬 Fridge-to-Feast Pantry Matcher</h2>
+    <p class="section-subtitle">Select ingredients you have — we'll find matching recipes instantly!</p>
+    <div class="pantry-tags" id="pantryTags">
+      {% for ing in 'Chicken,Salmon,Eggs,Spinach,Garlic,Avocado,Pasta,Rice,Tomatoes,Cheese,Onion,Lemon,Beef,Basil,Cream' %}
+      <button class="pantry-tag" onclick="toggleIngredient(this, '{{ ing }}')">{{ ing }}</button>
+      {% endfor %}
+    </div>
+    <div class="pantry-actions">
+      <button class="btn btn-primary" onclick="matchPantry()">🔍 Find Recipes</button>
+      <button class="btn btn-secondary" onclick="clearPantry()">✕ Clear</button>
+    </div>
+    <div class="pantry-results" id="pantryResults"></div>
+  </div>
+</section>
+
+<!-- Search & Filter -->
+<section class="search-section" id="recipes">
+  <div class="container">
+    <form method="get" class="search-bar" id="searchForm">
+      <input type="text" name="q" value="{{ query }}" id="searchInput" class="search-input" placeholder="Search recipes, ingredients, cuisines...">
+      <button type="submit" class="search-btn">🔍</button>
+    </form>
+    <div class="filter-tabs">
+      <a href="{% url 'recipes:home' %}" class="filter-tab {% if not active_category and not query %}active{% endif %}">All</a>
+      {% for cat in categories %}
+      <a href="?category={{ cat }}" class="filter-tab {% if active_category == cat %}active{% endif %}">{{ cat }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Recipe Grid -->
+<section class="recipes-section">
+  <div class="container">
+    {% if query or active_category %}
+    <p class="results-info">
+      Found <strong>{{ recipes|length }}</strong> recipe{% if recipes|length != 1 %}s{% endif %}
+      {% if query %} for "<em>{{ query }}</em>"{% endif %}
+      {% if active_category %} in <em>{{ active_category }}</em>{% endif %}
+    </p>
+    {% endif %}
+
+    {% if recipes %}
+    <div class="recipe-grid">
+      {% for recipe in recipes %}
+      <div class="recipe-card" id="card-{{ recipe.pk }}">
+        <div class="card-image-wrap">
+          <img src="{{ recipe.image_url }}" alt="{{ recipe.title }}" class="card-image" loading="lazy">
+          <div class="card-badges">
+            <span class="badge badge-category">{{ recipe.category }}</span>
+            <span class="badge badge-difficulty badge-{{ recipe.difficulty|lower }}">{{ recipe.difficulty }}</span>
+          </div>
+          <div class="card-overlay">
+            <a href="{% url 'recipes:detail' recipe.pk %}" class="btn btn-primary btn-sm">View Recipe</a>
+          </div>
+        </div>
+        <div class="card-body">
+          <h3 class="card-title">
+            <a href="{% url 'recipes:detail' recipe.pk %}">{{ recipe.title }}</a>
+          </h3>
+          <p class="card-desc">{{ recipe.description|truncatechars:90 }}</p>
+          <div class="card-meta">
+            <span>⏱ {{ recipe.time_minutes }}min</span>
+            <span>🍽 {{ recipe.cuisine }}</span>
+            <span>🔥 {{ recipe.calories }} cal</span>
+          </div>
+          <div class="card-nutrition">
+            <span class="nutrition-pill">P: {{ recipe.protein }}</span>
+            <span class="nutrition-pill">C: {{ recipe.carbs }}</span>
+            <span class="nutrition-pill">F: {{ recipe.fat }}</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">🍽</div>
+      <h3>No recipes found</h3>
+      <p>Try a different search or <a href="{% url 'recipes:home' %}">view all recipes</a>.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Pantry Matcher
+let selectedIngredients = [];
+function togglePantry() {
+  const s = document.getElementById('pantrySection');
+  s.style.display = s.style.display === 'none' ? 'block' : 'none';
+}
+function toggleIngredient(btn, name) {
+  btn.classList.toggle('active');
+  if (selectedIngredients.includes(name)) {
+    selectedIngredients = selectedIngredients.filter(i => i !== name);
+  } else {
+    selectedIngredients.push(name);
+  }
+}
+function clearPantry() {
+  selectedIngredients = [];
+  document.querySelectorAll('.pantry-tag').forEach(b => b.classList.remove('active'));
+  document.getElementById('pantryResults').innerHTML = '';
+}
+async function matchPantry() {
+  if (!selectedIngredients.length) return alert('Please select at least one ingredient!');
+  const res = document.getElementById('pantryResults');
+  res.innerHTML = '<p class="loading">🔍 Finding matches...</p>';
+  try {
+    const r = await fetch('/api/pantry/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+      body: JSON.stringify({ingredients: selectedIngredients})
+    });
+    const data = await r.json();
+    if (!data.recipes.length) {
+      res.innerHTML = '<p class="no-match">No matches found. Try adding more ingredients!</p>';
+      return;
+    }
+    res.innerHTML = '<div class="pantry-grid">' + data.recipes.map(r => `
+      <a href="/recipe/${r.id}/" class="pantry-result-card">
+        <img src="${r.image}" alt="${r.title}" onerror="this.style.display='none'">
+        <div class="prc-body">
+          <div class="prc-match">${r.match_count} ingredient match${r.match_count>1?'es':''}</div>
+          <div class="prc-title">${r.title}</div>
+          <div class="prc-meta">⏱ ${r.time}min · 🔥 ${r.calories}cal</div>
+        </div>
+      </a>`).join('') + '</div>';
+  } catch(e) { res.innerHTML = '<p class="error">Error fetching results.</p>'; }
+}
+function getCookie(name) {
+  let v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+  return v ? v[2] : '';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ recipe.title }} – ChefAI{% endblock %}
+
+{% block content %}
+<div class="container detail-container">
+
+  <a href="{% url 'recipes:home' %}" class="back-link">← Back to Recipes</a>
+
+  <div class="detail-hero">
+    <div class="detail-image-wrap">
+      <img src="{{ recipe.image_url }}" alt="{{ recipe.title }}" class="detail-image">
+      <div class="detail-badges">
+        <span class="badge badge-category">{{ recipe.category }}</span>
+        <span class="badge badge-difficulty badge-{{ recipe.difficulty|lower }}">{{ recipe.difficulty }}</span>
+        <span class="badge badge-cuisine">{{ recipe.cuisine }}</span>
+      </div>
+    </div>
+    <div class="detail-info">
+      <h1 class="detail-title">{{ recipe.title }}</h1>
+      <p class="detail-desc">{{ recipe.description }}</p>
+
+      <div class="detail-stats">
+        <div class="dstat"><span class="dstat-val">{{ recipe.time_minutes }}</span><span class="dstat-label">Minutes</span></div>
+        <div class="dstat"><span class="dstat-val">{{ recipe.calories }}</span><span class="dstat-label">Calories</span></div>
+        <div class="dstat"><span class="dstat-val">{{ recipe.protein }}</span><span class="dstat-label">Protein</span></div>
+        <div class="dstat"><span class="dstat-val">{{ recipe.carbs }}</span><span class="dstat-label">Carbs</span></div>
+        <div class="dstat"><span class="dstat-val">{{ recipe.fat }}</span><span class="dstat-label">Fat</span></div>
+      </div>
+
+      <div class="timer-box" id="timerBox">
+        <div class="timer-display" id="timerDisplay">{{ recipe.time_minutes }}:00</div>
+        <div class="timer-controls">
+          <button class="btn btn-primary btn-sm" onclick="startTimer({{ recipe.time_minutes }})">▶ Start</button>
+          <button class="btn btn-secondary btn-sm" onclick="pauseTimer()">⏸ Pause</button>
+          <button class="btn btn-secondary btn-sm" onclick="resetTimer({{ recipe.time_minutes }})">↺ Reset</button>
+        </div>
+      </div>
+
+      <button class="btn btn-accent" onclick="toggleChat(); setTimeout(()=>{ document.getElementById('chatInput').value='Tell me about {{ recipe.title|escapejs }}'; sendMessage(); }, 400)">
+        💬 Ask AI About This Recipe
+      </button>
+    </div>
+  </div>
+
+  <div class="detail-body">
+    <div class="detail-col">
+      <h2 class="col-title">🛒 Ingredients</h2>
+      <ul class="ingredient-list" id="ingredientList">
+        {% for ingredient in recipe.ingredients.all %}
+        <li class="ingredient-item" onclick="this.classList.toggle('checked')">
+          <span class="ing-check">☐</span>
+          <span class="ing-name">{{ ingredient.name }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="detail-col">
+      <h2 class="col-title">👨‍🍳 Cooking Steps</h2>
+      <ol class="steps-list">
+        {% for step in recipe.steps.all %}
+        <li class="step-item" onclick="this.classList.toggle('done')">
+          <div class="step-num">{{ step.step_number }}</div>
+          <div class="step-text">{{ step.instruction }}</div>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+
+  {% if related %}
+  <section class="related-section">
+    <h2 class="section-title">You Might Also Like</h2>
+    <div class="related-grid">
+      {% for r in related %}
+      <a href="{% url 'recipes:detail' r.pk %}" class="related-card">
+        <img src="{{ r.image_url }}" alt="{{ r.title }}" class="related-img">
+        <div class="related-body">
+          <div class="related-title">{{ r.title }}</div>
+          <div class="related-meta">⏱ {{ r.time_minutes }}min · 🔥 {{ r.calories }}cal</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Countdown Timer
+let timerInterval = null;
+let totalSeconds = {{ recipe.time_minutes }} * 60;
+let remainingSeconds = totalSeconds;
+let running = false;
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+}
+
+function startTimer(mins) {
+  if (running) return;
+  running = true;
+  timerInterval = setInterval(() => {
+    remainingSeconds--;
+    document.getElementById('timerDisplay').textContent = formatTime(remainingSeconds);
+    if (remainingSeconds <= 0) {
+      clearInterval(timerInterval);
+      running = false;
+      document.getElementById('timerDisplay').textContent = "⏰ Done!";
+      playChime();
+    }
+  }, 1000);
+}
+
+function pauseTimer() {
+  clearInterval(timerInterval);
+  running = false;
+}
+
+function resetTimer(mins) {
+  clearInterval(timerInterval);
+  running = false;
+  remainingSeconds = mins * 60;
+  document.getElementById('timerDisplay').textContent = formatTime(remainingSeconds);
+}
+
+function playChime() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  [523, 659, 784, 1046].forEach((freq, i) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = freq;
+    o.type = 'sine';
+    g.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.2);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.2 + 0.5);
+    o.start(ctx.currentTime + i * 0.2);
+    o.stop(ctx.currentTime + i * 0.2 + 0.5);
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: chef-ai-django
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python manage.py migrate && python recipes/seed.py
+    startCommand: gunicorn chefai.wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: chefai.settings
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: "3.11"
